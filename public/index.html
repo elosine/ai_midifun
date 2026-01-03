@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MidiFun</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0a0a0f;
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        .header {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            font-size: 2rem;
+            background: linear-gradient(90deg, #00d4ff, #7b2ff7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .status {
+            font-size: 0.9rem;
+            color: #a0a0a0;
+            margin-top: 0.5rem;
+        }
+        .status.connected {
+            color: #00d4ff;
+        }
+        .status.error {
+            color: #ff6b6b;
+        }
+        .status.recording {
+            color: #ff3333;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .controls-bar {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.5);
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            padding: 0 1rem;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .control-group:last-child {
+            border-right: none;
+        }
+        .control-group label {
+            color: #7b2ff7;
+            font-size: 0.8rem;
+        }
+        .btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(123, 47, 247, 0.5);
+            color: #fff;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            border-color: #7b2ff7;
+            background: rgba(123, 47, 247, 0.2);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn.record {
+            border-color: rgba(255, 51, 51, 0.5);
+        }
+        .btn.record:hover {
+            border-color: #ff3333;
+            background: rgba(255, 51, 51, 0.2);
+        }
+        .btn.record.active {
+            background: rgba(255, 51, 51, 0.4);
+            border-color: #ff3333;
+            animation: pulse 1s infinite;
+        }
+        .btn.stop {
+            border-color: rgba(255, 153, 51, 0.5);
+        }
+        .btn.stop:hover {
+            border-color: #ff9933;
+            background: rgba(255, 153, 51, 0.2);
+        }
+        .btn.play {
+            border-color: rgba(51, 255, 51, 0.5);
+        }
+        .btn.play:hover {
+            border-color: #33ff33;
+            background: rgba(51, 255, 51, 0.2);
+        }
+        .btn.play.active {
+            background: rgba(51, 255, 51, 0.4);
+            border-color: #33ff33;
+        }
+        .file-input {
+            display: none;
+        }
+        .visualizer-container {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 200px);
+            background: linear-gradient(180deg, rgba(20, 20, 30, 0.9) 0%, rgba(10, 10, 15, 1) 100%);
+            overflow: hidden;
+        }
+        .visualizer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        .note-dot {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            transition: opacity 0.3s ease-out;
+        }
+        .note-dot.fade-out {
+            opacity: 0 !important;
+        }
+        .bouncing-ball {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            will-change: top;
+        }
+        .axis-labels {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 10px;
+            background: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            font-size: 0.7rem;
+            color: #666;
+        }
+        .velocity-label {
+            position: absolute;
+            left: 5px;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transform: rotate(180deg);
+            font-size: 0.7rem;
+            color: #666;
+        }
+        .velocity-label.high {
+            top: 10px;
+        }
+        .velocity-label.low {
+            bottom: 50px;
+        }
+        .device-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+            color: #666;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        .device-bar label {
+            color: #7b2ff7;
+        }
+        .device-select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(123, 47, 247, 0.5);
+            color: #fff;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            min-width: 200px;
+        }
+        .device-select:hover {
+            border-color: #7b2ff7;
+        }
+        .device-select:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 5px rgba(0, 212, 255, 0.3);
+        }
+        .device-select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+        .pitch-legend {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .playback-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 0.5rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            display: none;
+        }
+        .playback-info.visible {
+            display: block;
+        }
+        .time-display {
+            color: #00d4ff;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MidiFun</h1>
+        <p class="status" id="status">Initializing MIDI...</p>
+    </div>
+    
+    <div class="controls-bar">
+        <div class="control-group">
+            <label>Record:</label>
+            <button class="btn record" id="recordBtn">Record</button>
+            <button class="btn stop" id="stopRecordBtn" disabled>Stop</button>
+        </div>
+        <div class="control-group">
+            <label>File:</label>
+            <input type="file" id="midiFileInput" class="file-input" accept=".mid,.midi">
+            <button class="btn" id="openFileBtn">Open MIDI</button>
+            <button class="btn play" id="playBtn" disabled>Play</button>
+            <button class="btn stop" id="stopPlayBtn" disabled>Stop</button>
+        </div>
+        <div class="control-group">
+            <label>Export:</label>
+            <button class="btn" id="saveMidiBtn" disabled>Save .mid</button>
+            <button class="btn" id="saveCsvBtn" disabled>Save .csv</button>
+            <button class="btn" id="saveOpenedCsvBtn" disabled>Opened to .csv</button>
+        </div>
+    </div>
+    
+    <div class="visualizer-container">
+        <div class="visualizer" id="visualizer"></div>
+        <span class="velocity-label high">High Velocity</span>
+        <span class="velocity-label low">Low Velocity</span>
+        <div class="axis-labels">
+            <span>A0 (21)</span>
+            <span>C2</span>
+            <span>C3</span>
+            <span>C4 (Middle C)</span>
+            <span>C5</span>
+            <span>C6</span>
+            <span>C7</span>
+            <span>C8 (108)</span>
+        </div>
+        <div class="pitch-legend" id="pitchLegend"></div>
+        <div class="playback-info" id="playbackInfo">
+            <div>File: <span id="fileName">-</span></div>
+            <div>Time: <span class="time-display" id="timeDisplay">0:00.000</span></div>
+        </div>
+    </div>
+    
+    <div class="device-bar">
+        <label for="deviceSelect">MIDI Input:</label>
+        <select id="deviceSelect" class="device-select">
+            <option value="">-- Select input device --</option>
+        </select>
+        <label for="outputSelect">MIDI Output:</label>
+        <select id="outputSelect" class="device-select">
+            <option value="">-- Select output device --</option>
+        </select>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const deviceSelectEl = document.getElementById('deviceSelect');
+        const outputSelectEl = document.getElementById('outputSelect');
+        const visualizerEl = document.getElementById('visualizer');
+        const pitchLegendEl = document.getElementById('pitchLegend');
+        
+        const recordBtn = document.getElementById('recordBtn');
+        const stopRecordBtn = document.getElementById('stopRecordBtn');
+        const openFileBtn = document.getElementById('openFileBtn');
+        const midiFileInput = document.getElementById('midiFileInput');
+        const playBtn = document.getElementById('playBtn');
+        const stopPlayBtn = document.getElementById('stopPlayBtn');
+        const saveMidiBtn = document.getElementById('saveMidiBtn');
+        const saveCsvBtn = document.getElementById('saveCsvBtn');
+        const saveOpenedCsvBtn = document.getElementById('saveOpenedCsvBtn');
+        const playbackInfo = document.getElementById('playbackInfo');
+        const fileNameEl = document.getElementById('fileName');
+        const timeDisplayEl = document.getElementById('timeDisplay');
+
+        let midiAccess = null;
+        let selectedInputId = null;
+        let selectedOutputId = null;
+        let selectedOutput = null;
+        
+        let isRecording = false;
+        let recordingStartTime = 0;
+        let recordedEvents = [];
+        
+        let isPlaying = false;
+        let playbackTimeouts = [];
+        let loadedMidiData = null;
+        let loadedFileName = '';
+        let playbackStartTime = 0;
+        let playbackInterval = null;
+
+        // Bouncing Ball Animation Engine Variables
+        const FRAMERATE = 60;
+        const MS_PER_FRAME = 1000 / FRAMERATE;
+        let animationEngineRunning = false;
+        let lastFrameTime = 0;
+        let bouncingBalls = {}; // Store active bouncing balls by note number
+        
+        // Bounce physics constants
+        const BALL_RADIUS = 15;
+        const BOUNCE_TRAVEL_DIST = 120; // pixels to travel up
+        const ASCENT_FACTOR = 0.2;  // Exponential curve for ascent (fast start, slow end)
+        const DESCENT_FACTOR = 2.8; // Exponential curve for descent (slow start, fast end)
+        const ASCENT_PCT = 0.35;    // 35% of time going up
+        const DESCENT_PCT = 0.65;   // 65% of time coming down
+        const DEFAULT_BOUNCE_DURATION_MS = 500; // Default bounce duration
+
+        const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        
+        const PITCH_COLORS = {
+            0: '#ff3333',   // C - Red
+            1: '#ff6633',   // C# - Red-Orange
+            2: '#ff9933',   // D - Orange
+            3: '#ffcc33',   // D# - Yellow-Orange
+            4: '#ffff33',   // E - Yellow
+            5: '#99ff33',   // F - Yellow-Green
+            6: '#33ff33',   // F# - Green
+            7: '#33ff99',   // G - Green-Cyan
+            8: '#33ffff',   // G# - Cyan
+            9: '#3399ff',   // A - Blue
+            10: '#6633ff',  // A# - Blue-Purple
+            11: '#cc33ff'   // B - Purple
+        };
+
+        const MIN_NOTE = 21;
+        const MAX_NOTE = 108;
+        const NOTE_RANGE = MAX_NOTE - MIN_NOTE;
+
+        function buildLegend() {
+            NOTE_NAMES.forEach((name, index) => {
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+                item.innerHTML = `<div class="legend-color" style="background: ${PITCH_COLORS[index]}"></div><span>${name}</span>`;
+                pitchLegendEl.appendChild(item);
+            });
+        }
+
+        function noteNumberToName(noteNumber) {
+            const octave = Math.floor(noteNumber / 12) - 1;
+            const noteName = NOTE_NAMES[noteNumber % 12];
+            return `${noteName}${octave}`;
+        }
+
+        function getPitchClass(noteNumber) {
+            return noteNumber % 12;
+        }
+
+        function createNoteDot(noteNumber, velocity) {
+            const pitchClass = getPitchClass(noteNumber);
+            const color = PITCH_COLORS[pitchClass];
+            
+            const xPercent = ((noteNumber - MIN_NOTE) / NOTE_RANGE) * 100;
+            const yPercent = 100 - ((velocity / 127) * 85 + 7.5);
+            
+            const size = 20 + (velocity / 127) * 40;
+            
+            const dot = document.createElement('div');
+            dot.className = 'note-dot';
+            dot.style.left = `${xPercent}%`;
+            dot.style.top = `${yPercent}%`;
+            dot.style.width = `${size}px`;
+            dot.style.height = `${size}px`;
+            dot.style.backgroundColor = color;
+            dot.style.boxShadow = `0 0 ${size}px ${color}, 0 0 ${size * 2}px ${color}`;
+            dot.style.opacity = 0.9;
+            dot.dataset.note = noteNumber;
+            
+            visualizerEl.appendChild(dot);
+            return dot;
+        }
+
+        function removeNoteDot(noteNumber) {
+            const dots = visualizerEl.querySelectorAll(`.note-dot[data-note="${noteNumber}"]`);
+            dots.forEach(dot => {
+                dot.classList.add('fade-out');
+                setTimeout(() => dot.remove(), 300);
+            });
+        }
+
+        function clearAllDots() {
+            visualizerEl.querySelectorAll('.note-dot').forEach(dot => dot.remove());
+        }
+
+        function formatTime(ms) {
+            const minutes = Math.floor(ms / 60000);
+            const seconds = Math.floor((ms % 60000) / 1000);
+            const millis = Math.floor(ms % 1000);
+            return `${minutes}:${seconds.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
+        }
+
+        function handleMIDIMessage(event) {
+            const [status, data1, data2] = event.data;
+            const command = status >> 4;
+            const channel = status & 0x0f;
+            const noteNumber = data1;
+            const velocity = data2;
+            
+            if (isRecording) {
+                const timestamp = performance.now() - recordingStartTime;
+                recordedEvents.push({
+                    timestamp,
+                    status,
+                    channel,
+                    command,
+                    data1,
+                    data2,
+                    noteName: (command === 0x9 || command === 0x8) ? noteNumberToName(data1) : ''
+                });
+            }
+
+            switch (command) {
+                case 0x9: // Note On
+                    if (velocity > 0) {
+                        createNoteDot(noteNumber, velocity);
+                    } else {
+                        removeNoteDot(noteNumber);
+                    }
+                    break;
+                case 0x8: // Note Off
+                    removeNoteDot(noteNumber);
+                    break;
+            }
+        }
+
+        // Recording functions
+        function startRecording() {
+            isRecording = true;
+            recordingStartTime = performance.now();
+            recordedEvents = [];
+            
+            recordBtn.classList.add('active');
+            recordBtn.disabled = true;
+            stopRecordBtn.disabled = false;
+            saveMidiBtn.disabled = true;
+            saveCsvBtn.disabled = true;
+            
+            statusEl.textContent = 'Recording...';
+            statusEl.classList.add('recording');
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            
+            recordBtn.classList.remove('active');
+            recordBtn.disabled = false;
+            stopRecordBtn.disabled = true;
+            
+            statusEl.classList.remove('recording');
+            
+            if (recordedEvents.length > 0) {
+                saveMidiBtn.disabled = false;
+                saveCsvBtn.disabled = false;
+                statusEl.textContent = `Recorded ${recordedEvents.length} events. Ready to save.`;
+            } else {
+                statusEl.textContent = 'No events recorded.';
+            }
+        }
+
+        // MIDI file generation
+        function writeVariableLength(value) {
+            const bytes = [];
+            bytes.push(value & 0x7f);
+            value >>= 7;
+            while (value > 0) {
+                bytes.push((value & 0x7f) | 0x80);
+                value >>= 7;
+            }
+            return bytes.reverse();
+        }
+
+        function createMidiFile(events) {
+            const ticksPerBeat = 480;
+            const microsecondsPerBeat = 500000; // 120 BPM
+            const ticksPerMs = ticksPerBeat / (microsecondsPerBeat / 1000);
+            
+            const trackData = [];
+            
+            // Tempo meta event
+            trackData.push(0x00); // Delta time
+            trackData.push(0xff, 0x51, 0x03); // Tempo meta event
+            trackData.push((microsecondsPerBeat >> 16) & 0xff);
+            trackData.push((microsecondsPerBeat >> 8) & 0xff);
+            trackData.push(microsecondsPerBeat & 0xff);
+            
+            let lastTick = 0;
+            
+            events.forEach(event => {
+                const tick = Math.round(event.timestamp * ticksPerMs);
+                const deltaTicks = tick - lastTick;
+                lastTick = tick;
+                
+                const deltaBytes = writeVariableLength(deltaTicks);
+                trackData.push(...deltaBytes);
+                
+                trackData.push(event.status);
+                trackData.push(event.data1);
+                if (event.data2 !== undefined) {
+                    trackData.push(event.data2);
+                }
+            });
+            
+            // End of track
+            trackData.push(0x00, 0xff, 0x2f, 0x00);
+            
+            const trackLength = trackData.length;
+            
+            const header = [
+                0x4d, 0x54, 0x68, 0x64, // MThd
+                0x00, 0x00, 0x00, 0x06, // Header length
+                0x00, 0x00, // Format 0
+                0x00, 0x01, // 1 track
+                (ticksPerBeat >> 8) & 0xff, ticksPerBeat & 0xff // Ticks per beat
+            ];
+            
+            const trackHeader = [
+                0x4d, 0x54, 0x72, 0x6b, // MTrk
+                (trackLength >> 24) & 0xff,
+                (trackLength >> 16) & 0xff,
+                (trackLength >> 8) & 0xff,
+                trackLength & 0xff
+            ];
+            
+            return new Uint8Array([...header, ...trackHeader, ...trackData]);
+        }
+
+        function saveMidiFile() {
+            if (recordedEvents.length === 0) return;
+            
+            const midiData = createMidiFile(recordedEvents);
+            const blob = new Blob([midiData], { type: 'audio/midi' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `recording_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.mid`;
+            a.click();
+            
+            URL.revokeObjectURL(url);
+        }
+
+        function createCsvFromEvents(events) {
+            const headers = ['timestamp_ms', 'timestamp_formatted', 'status_byte', 'command', 'channel', 'data1', 'data2', 'note_name', 'event_type'];
+            
+            const rows = events.map(event => {
+                let eventType = 'unknown';
+                const cmd = event.command || (event.status >> 4);
+                switch (cmd) {
+                    case 0x8: eventType = 'note_off'; break;
+                    case 0x9: eventType = event.data2 > 0 ? 'note_on' : 'note_off'; break;
+                    case 0xA: eventType = 'aftertouch'; break;
+                    case 0xB: eventType = 'control_change'; break;
+                    case 0xC: eventType = 'program_change'; break;
+                    case 0xD: eventType = 'channel_pressure'; break;
+                    case 0xE: eventType = 'pitch_bend'; break;
+                }
+                
+                return [
+                    event.timestamp.toFixed(3),
+                    formatTime(event.timestamp),
+                    '0x' + event.status.toString(16).padStart(2, '0'),
+                    '0x' + cmd.toString(16),
+                    (event.channel !== undefined ? event.channel : (event.status & 0x0f)) + 1,
+                    event.data1,
+                    event.data2 !== undefined ? event.data2 : '',
+                    event.noteName || ((cmd === 0x9 || cmd === 0x8) ? noteNumberToName(event.data1) : ''),
+                    eventType
+                ].join(',');
+            });
+            
+            return [headers.join(','), ...rows].join('\n');
+        }
+
+        function saveCsvFile() {
+            if (recordedEvents.length === 0) return;
+            
+            const csv = createCsvFromEvents(recordedEvents);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `recording_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.csv`;
+            a.click();
+            
+            URL.revokeObjectURL(url);
+        }
+
+        // MIDI file parsing
+        function parseMidiFile(arrayBuffer) {
+            const data = new Uint8Array(arrayBuffer);
+            let pos = 0;
+            
+            function readInt(bytes) {
+                let result = 0;
+                for (let i = 0; i < bytes; i++) {
+                    result = (result << 8) | data[pos++];
+                }
+                return result;
+            }
+            
+            function readVariableLength() {
+                let result = 0;
+                let byte;
+                do {
+                    byte = data[pos++];
+                    result = (result << 7) | (byte & 0x7f);
+                } while (byte & 0x80);
+                return result;
+            }
+            
+            // Read header
+            const headerChunk = String.fromCharCode(...data.slice(pos, pos + 4));
+            pos += 4;
+            if (headerChunk !== 'MThd') throw new Error('Invalid MIDI file');
+            
+            const headerLength = readInt(4);
+            const format = readInt(2);
+            const numTracks = readInt(2);
+            const ticksPerBeat = readInt(2);
+            
+            const events = [];
+            let microsecondsPerBeat = 500000; // Default 120 BPM
+            
+            for (let track = 0; track < numTracks; track++) {
+                const trackChunk = String.fromCharCode(...data.slice(pos, pos + 4));
+                pos += 4;
+                if (trackChunk !== 'MTrk') continue;
+                
+                const trackLength = readInt(4);
+                const trackEnd = pos + trackLength;
+                
+                let absoluteTick = 0;
+                let runningStatus = 0;
+                
+                while (pos < trackEnd) {
+                    const deltaTicks = readVariableLength();
+                    absoluteTick += deltaTicks;
+                    
+                    let statusByte = data[pos];
+                    
+                    if (statusByte < 0x80) {
+                        statusByte = runningStatus;
+                    } else {
+                        pos++;
+                        if (statusByte < 0xf0) {
+                            runningStatus = statusByte;
+                        }
+                    }
+                    
+                    const command = statusByte >> 4;
+                    const channel = statusByte & 0x0f;
+                    
+                    if (statusByte === 0xff) {
+                        // Meta event
+                        const metaType = data[pos++];
+                        const metaLength = readVariableLength();
+                        
+                        if (metaType === 0x51 && metaLength === 3) {
+                            // Tempo
+                            microsecondsPerBeat = (data[pos] << 16) | (data[pos + 1] << 8) | data[pos + 2];
+                        }
+                        
+                        pos += metaLength;
+                    } else if (statusByte === 0xf0 || statusByte === 0xf7) {
+                        // SysEx
+                        const sysexLength = readVariableLength();
+                        pos += sysexLength;
+                    } else {
+                        // Channel event
+                        const data1 = data[pos++];
+                        let data2;
+                        
+                        if (command !== 0xc && command !== 0xd) {
+                            data2 = data[pos++];
+                        }
+                        
+                        const ticksPerMs = ticksPerBeat / (microsecondsPerBeat / 1000);
+                        const timestamp = absoluteTick / ticksPerMs;
+                        
+                        events.push({
+                            timestamp,
+                            status: statusByte,
+                            command,
+                            channel,
+                            data1,
+                            data2,
+                            noteName: (command === 0x9 || command === 0x8) ? noteNumberToName(data1) : ''
+                        });
+                    }
+                }
+            }
+            
+            events.sort((a, b) => a.timestamp - b.timestamp);
+            return events;
+        }
+
+        function openMidiFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    loadedMidiData = parseMidiFile(e.target.result);
+                    loadedFileName = file.name;
+                    
+                    fileNameEl.textContent = loadedFileName;
+                    playbackInfo.classList.add('visible');
+                    
+                    playBtn.disabled = false;
+                    saveOpenedCsvBtn.disabled = false;
+                    
+                    statusEl.textContent = `Loaded ${loadedFileName} (${loadedMidiData.length} events)`;
+                } catch (error) {
+                    statusEl.textContent = `Error loading MIDI file: ${error.message}`;
+                    statusEl.classList.add('error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function sendMidiOut(status, data1, data2) {
+            if (selectedOutput) {
+                if (data2 !== undefined) {
+                    selectedOutput.send([status, data1, data2]);
+                } else {
+                    selectedOutput.send([status, data1]);
+                }
+            }
+        }
+
+        // Bouncing Ball Animation Functions
+        function createBouncingBall(noteNumber, velocity) {
+            const pitchClass = getPitchClass(noteNumber);
+            const color = PITCH_COLORS[pitchClass];
+            
+            // X position based on pitch (left = low, right = high)
+            const xPercent = ((noteNumber - MIN_NOTE) / NOTE_RANGE) * 100;
+            
+            // Ball size based on velocity
+            const size = (BALL_RADIUS * 2) + (velocity / 127) * 20;
+            
+            // Create ball element
+            const ball = document.createElement('div');
+            ball.className = 'bouncing-ball';
+            ball.style.left = `${xPercent}%`;
+            ball.style.width = `${size}px`;
+            ball.style.height = `${size}px`;
+            ball.style.backgroundColor = color;
+            ball.style.boxShadow = `0 0 ${size}px ${color}, 0 0 ${size * 1.5}px ${color}`;
+            ball.dataset.note = noteNumber;
+            
+            // Calculate bounce duration based on velocity (faster = shorter bounce)
+            const bounceDuration = DEFAULT_BOUNCE_DURATION_MS * (1 - (velocity / 127) * 0.3);
+            
+            // Store ball data
+            const ballData = {
+                element: ball,
+                noteNumber: noteNumber,
+                velocity: velocity,
+                startTime: performance.now(),
+                bounceDuration: bounceDuration,
+                xPercent: xPercent,
+                size: size,
+                color: color,
+                phase: 'bounce', // 'bounce' or 'held'
+                bounceCount: 0
+            };
+            
+            // Calculate bottom Y position (where ball lands)
+            // Higher velocity = higher on screen (lower Y percentage)
+            const baseY = 85 - (velocity / 127) * 30; // 55% to 85% from top
+            ballData.bottomY = baseY;
+            ballData.topY = baseY - (BOUNCE_TRAVEL_DIST / visualizerEl.clientHeight * 100);
+            
+            // Set initial position at bottom
+            ball.style.top = `${ballData.bottomY}%`;
+            
+            visualizerEl.appendChild(ball);
+            bouncingBalls[noteNumber] = ballData;
+            
+            // Start animation engine if not running
+            if (!animationEngineRunning) {
+                animationEngineRunning = true;
+                lastFrameTime = performance.now();
+                requestAnimationFrame(animationEngine);
+            }
+            
+            return ballData;
+        }
+
+        function removeBouncingBall(noteNumber) {
+            const ballData = bouncingBalls[noteNumber];
+            if (ballData) {
+                ballData.element.style.transition = 'opacity 0.3s ease-out';
+                ballData.element.style.opacity = '0';
+                setTimeout(() => {
+                    if (ballData.element.parentNode) {
+                        ballData.element.remove();
+                    }
+                }, 300);
+                delete bouncingBalls[noteNumber];
+            }
+        }
+
+        function clearAllBouncingBalls() {
+            Object.keys(bouncingBalls).forEach(noteNumber => {
+                const ballData = bouncingBalls[noteNumber];
+                if (ballData && ballData.element.parentNode) {
+                    ballData.element.remove();
+                }
+            });
+            bouncingBalls = {};
+        }
+
+        // Animation engine using exponential curves like sf004
+        function animationEngine(timestamp) {
+            if (!animationEngineRunning) return;
+            
+            const activeBalls = Object.keys(bouncingBalls);
+            
+            if (activeBalls.length === 0) {
+                animationEngineRunning = false;
+                return;
+            }
+            
+            activeBalls.forEach(noteNumber => {
+                const ballData = bouncingBalls[noteNumber];
+                if (!ballData) return;
+                
+                const elapsed = timestamp - ballData.startTime;
+                const bounceTime = elapsed % ballData.bounceDuration;
+                const bounceProgress = bounceTime / ballData.bounceDuration;
+                
+                let yPercent;
+                
+                if (bounceProgress < ASCENT_PCT) {
+                    // Ascending phase - fast start, slow at top
+                    const ascentProgress = bounceProgress / ASCENT_PCT;
+                    const curveValue = Math.pow(ascentProgress, ASCENT_FACTOR);
+                    const travelPercent = (BOUNCE_TRAVEL_DIST / visualizerEl.clientHeight) * 100;
+                    yPercent = ballData.bottomY - (curveValue * travelPercent);
+                } else {
+                    // Descending phase - slow start, fast at bottom
+                    const descentProgress = (bounceProgress - ASCENT_PCT) / DESCENT_PCT;
+                    const curveValue = Math.pow(descentProgress, DESCENT_FACTOR);
+                    const travelPercent = (BOUNCE_TRAVEL_DIST / visualizerEl.clientHeight) * 100;
+                    yPercent = ballData.topY + (curveValue * travelPercent);
+                }
+                
+                ballData.element.style.top = `${yPercent}%`;
+            });
+            
+            requestAnimationFrame(animationEngine);
+        }
+
+        function startPlayback() {
+            if (!loadedMidiData || loadedMidiData.length === 0) return;
+            
+            isPlaying = true;
+            playbackStartTime = performance.now();
+            
+            playBtn.classList.add('active');
+            playBtn.disabled = true;
+            stopPlayBtn.disabled = false;
+            
+            clearAllDots();
+            clearAllBouncingBalls();
+            
+            const outputStatus = selectedOutput ? ` -> ${selectedOutput.name}` : '';
+            statusEl.textContent = `Playing ${loadedFileName}${outputStatus}...`;
+            
+            loadedMidiData.forEach(event => {
+                const timeout = setTimeout(() => {
+                    if (!isPlaying) return;
+                    
+                    const command = event.command;
+                    const noteNumber = event.data1;
+                    const velocity = event.data2;
+                    
+                    // Send to MIDI output device
+                    sendMidiOut(event.status, event.data1, event.data2);
+                    
+                    // Update visualizer with bouncing balls
+                    switch (command) {
+                        case 0x9: // Note On
+                            if (velocity > 0) {
+                                createBouncingBall(noteNumber, velocity);
+                            } else {
+                                removeBouncingBall(noteNumber);
+                            }
+                            break;
+                        case 0x8: // Note Off
+                            removeBouncingBall(noteNumber);
+                            break;
+                    }
+                }, event.timestamp);
+                
+                playbackTimeouts.push(timeout);
+            });
+            
+            // End playback after last event
+            const lastEventTime = loadedMidiData[loadedMidiData.length - 1].timestamp;
+            const endTimeout = setTimeout(() => {
+                stopPlayback();
+            }, lastEventTime + 1000);
+            playbackTimeouts.push(endTimeout);
+            
+            // Update time display
+            playbackInterval = setInterval(() => {
+                if (isPlaying) {
+                    const elapsed = performance.now() - playbackStartTime;
+                    timeDisplayEl.textContent = formatTime(elapsed);
+                }
+            }, 50);
+        }
+
+        function stopPlayback() {
+            isPlaying = false;
+            animationEngineRunning = false;
+            
+            playbackTimeouts.forEach(t => clearTimeout(t));
+            playbackTimeouts = [];
+            
+            if (playbackInterval) {
+                clearInterval(playbackInterval);
+                playbackInterval = null;
+            }
+            
+            // Send all notes off to prevent stuck notes
+            if (selectedOutput) {
+                for (let channel = 0; channel < 16; channel++) {
+                    // All Notes Off (CC 123)
+                    selectedOutput.send([0xB0 | channel, 123, 0]);
+                }
+            }
+            
+            playBtn.classList.remove('active');
+            playBtn.disabled = false;
+            stopPlayBtn.disabled = true;
+            
+            clearAllDots();
+            clearAllBouncingBalls();
+            timeDisplayEl.textContent = '0:00.000';
+            
+            statusEl.textContent = `Stopped. ${loadedFileName} ready to play.`;
+        }
+
+        function saveOpenedCsv() {
+            if (!loadedMidiData || loadedMidiData.length === 0) return;
+            
+            const csv = createCsvFromEvents(loadedMidiData);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = loadedFileName.replace(/\.(mid|midi)$/i, '') + '.csv';
+            a.click();
+            
+            URL.revokeObjectURL(url);
+        }
+
+        // Event listeners
+        recordBtn.addEventListener('click', startRecording);
+        stopRecordBtn.addEventListener('click', stopRecording);
+        saveMidiBtn.addEventListener('click', saveMidiFile);
+        saveCsvBtn.addEventListener('click', saveCsvFile);
+        
+        openFileBtn.addEventListener('click', () => midiFileInput.click());
+        midiFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                openMidiFile(e.target.files[0]);
+            }
+        });
+        
+        playBtn.addEventListener('click', startPlayback);
+        stopPlayBtn.addEventListener('click', stopPlayback);
+        saveOpenedCsvBtn.addEventListener('click', saveOpenedCsv);
+
+        function updateDeviceList() {
+            if (!midiAccess) return;
+
+            // Update input devices
+            const inputs = Array.from(midiAccess.inputs.values());
+            const currentInputValue = deviceSelectEl.value;
+            
+            deviceSelectEl.innerHTML = '<option value="">-- Select input device --</option>';
+            
+            inputs.forEach(input => {
+                const option = document.createElement('option');
+                option.value = input.id;
+                option.textContent = `${input.name} (${input.manufacturer || 'Unknown'})`;
+                deviceSelectEl.appendChild(option);
+            });
+            
+            if (currentInputValue && midiAccess.inputs.has(currentInputValue)) {
+                deviceSelectEl.value = currentInputValue;
+            } else if (selectedInputId && midiAccess.inputs.has(selectedInputId)) {
+                deviceSelectEl.value = selectedInputId;
+            }
+            
+            // Update output devices
+            const outputs = Array.from(midiAccess.outputs.values());
+            const currentOutputValue = outputSelectEl.value;
+            
+            outputSelectEl.innerHTML = '<option value="">-- Select output device --</option>';
+            
+            outputs.forEach(output => {
+                const option = document.createElement('option');
+                option.value = output.id;
+                option.textContent = `${output.name} (${output.manufacturer || 'Unknown'})`;
+                outputSelectEl.appendChild(option);
+            });
+            
+            if (currentOutputValue && midiAccess.outputs.has(currentOutputValue)) {
+                outputSelectEl.value = currentOutputValue;
+            } else if (selectedOutputId && midiAccess.outputs.has(selectedOutputId)) {
+                outputSelectEl.value = selectedOutputId;
+            }
+            
+            connectToSelectedDevice();
+            connectToSelectedOutput();
+        }
+
+        function connectToSelectedDevice() {
+            if (!midiAccess) return;
+            
+            midiAccess.inputs.forEach(input => {
+                input.onmidimessage = null;
+            });
+            
+            const selectedId = deviceSelectEl.value;
+            if (!selectedId) {
+                statusEl.textContent = 'Select a MIDI device to begin';
+                selectedInputId = null;
+                return;
+            }
+            
+            const selectedInput = midiAccess.inputs.get(selectedId);
+            if (selectedInput) {
+                selectedInput.onmidimessage = handleMIDIMessage;
+                selectedInputId = selectedId;
+                statusEl.textContent = `Connected to ${selectedInput.name} - Play some notes!`;
+                statusEl.classList.add('connected');
+            }
+        }
+
+        deviceSelectEl.addEventListener('change', connectToSelectedDevice);
+
+        function connectToSelectedOutput() {
+            if (!midiAccess) return;
+            
+            const selectedId = outputSelectEl.value;
+            if (!selectedId) {
+                selectedOutput = null;
+                selectedOutputId = null;
+                return;
+            }
+            
+            selectedOutput = midiAccess.outputs.get(selectedId);
+            if (selectedOutput) {
+                selectedOutputId = selectedId;
+                statusEl.textContent = `Output: ${selectedOutput.name}`;
+            }
+        }
+
+        outputSelectEl.addEventListener('change', connectToSelectedOutput);
+
+        async function initMIDI() {
+            if (!navigator.requestMIDIAccess) {
+                statusEl.textContent = 'Web MIDI API not supported in this browser';
+                statusEl.classList.add('error');
+                return;
+            }
+
+            try {
+                midiAccess = await navigator.requestMIDIAccess();
+                statusEl.textContent = 'MIDI Connected - Play some notes!';
+                statusEl.classList.add('connected');
+
+                updateDeviceList();
+
+                midiAccess.onstatechange = () => {
+                    updateDeviceList();
+                };
+            } catch (error) {
+                statusEl.textContent = `MIDI Access Error: ${error.message}`;
+                statusEl.classList.add('error');
+            }
+        }
+
+        buildLegend();
+        initMIDI();
+    </script>
+</body>
+</html>
